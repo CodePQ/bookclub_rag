@@ -3,3 +3,5 @@ langchain-text-splitters
 ollama
 pinecone[grpc]
 python-dotenv
+streamlit
+

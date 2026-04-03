@@ -23,31 +23,64 @@ def get_pinecone_index(index_name="bookclub-rag"):
         
     return pc.Index(index_name)
 
-def upsert_to_pinecone(index, chunks, embeddings, namespace="default"):
+def upsert_to_pinecone(index, chunks, embeddings, book_title, namespace="default"):
     """
     Uploads vectors and their original text (metadata) to Pinecone.
+    We now include the 'title' of the book so we can filter by it later.
     """
     vectors_to_upsert = []
     
+    # Create a safe ID prefix using the book title
+    safe_title = book_title.replace(" ", "_").lower()
+    
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-        # We need a unique ID for every chunk (e.g., chunk_0, chunk_1)
-        vector_id = f"chunk_{i}"
+        # Unique ID combining book title and chunk number
+        vector_id = f"{safe_title}_chunk_{i}"
         
-        # We store the original text in the metadata dictionary
+        # We store the original text AND the book title in metadata
         vectors_to_upsert.append({
             "id": vector_id,
             "values": embedding,
-            "metadata": {"text": chunk}
+            "metadata": {
+                "text": chunk,
+                "title": book_title
+            }
         })
     
-    # Send the data to Pinecone in blocks
+    # Send the data to Pinecone
     index.upsert(vectors=vectors_to_upsert, namespace=namespace)
-    print(f"Successfully uploaded {len(vectors_to_upsert)} vectors to Pinecone namespace '{namespace}'.")
+    print(f"Successfully uploaded {len(vectors_to_upsert)} vectors for '{book_title}' to namespace '{namespace}'.")
+
+def get_all_book_titles(index, namespace="default"):
+    """
+    Returns a list of all unique book titles found in the index metadata.
+    Note: For very large indexes, it's better to store this list in a 
+    traditional database, but this works perfectly for a personal library!
+    """
+    # Query with a dummy vector to get metadata for many records
+    results = index.query(
+        vector=[0.0] * 768, 
+        top_k=1000, 
+        include_metadata=True,
+        namespace=namespace
+    )
+    
+    titles = set()
+    for match in results["matches"]:
+        if "title" in match["metadata"]:
+            titles.add(match["metadata"]["title"])
+            
+    return sorted(list(titles))
 
 if __name__ == "__main__":
-    # Test the connection
+    # Test the connection and library list
     print("Testing connection to Pinecone...")
     index = get_pinecone_index()
     if index:
         stats = index.describe_index_stats()
         print(f"Connected! Index stats: {stats}")
+        
+        # Test the library list
+        titles = get_all_book_titles(index)
+        print(f"Books in your library: {titles}")
+

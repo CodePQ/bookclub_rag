@@ -2,15 +2,20 @@ import ollama
 from embed import get_embedding
 from database import get_pinecone_index
 
-def retrieve_context(index, query_vector, top_k=3):
+def retrieve_context(index, query_vector, book_title=None, top_k=3):
     """
     Finds the most relevant text chunks from Pinecone.
+    If book_title is provided, it only searches that specific book.
     """
+    # Create the filter dictionary if a title is provided
+    filter_dict = {"title": book_title} if book_title else None
+
     results = index.query(
         vector=query_vector, 
         top_k=top_k, 
         include_metadata=True,
-        namespace="default" # Must match what we used in database.py
+        namespace="default",
+        filter=filter_dict # Apply the metadata filter!
     )
     
     # DEBUG: See what Pinecone found

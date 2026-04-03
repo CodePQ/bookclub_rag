@@ -5,9 +5,10 @@ from database import get_pinecone_index, upsert_to_pinecone
 def main():
     # 1. Setup paths and index
     PDF_PATH = "data/the-adventure-of-the-cheap-flat.pdf"
+    BOOK_TITLE = "The Adventure of the Cheap Flat"
     INDEX_NAME = "bookclub-rag"
     
-    print(f"--- Starting Data Induction for {PDF_PATH} ---")
+    print(f"--- Starting Data Induction for '{BOOK_TITLE}' ---")
     
     # 2. Ingest: Load and Chunk
     text = load_pdf(PDF_PATH)
@@ -22,8 +23,8 @@ def main():
     # 4. Database: Upload to Pinecone
     index = get_pinecone_index(INDEX_NAME)
     if index:
-        upsert_to_pinecone(index, chunks, embeddings)
-        print("--- Final Upload Complete! ---")
+        upsert_to_pinecone(index, chunks, embeddings, BOOK_TITLE)
+        print(f"--- Final Upload Complete for '{BOOK_TITLE}'! ---")
 
 if __name__ == "__main__":
     main()
