@@ -4,7 +4,7 @@ import ollama
 from ingest import load_pdf, chunk_text
 from embed import embed_chunks, get_embedding
 from database import get_pinecone_index, upsert_to_pinecone, get_all_book_titles
-from query import retrieve_context, generate_answer
+from query import retrieve_context, generate_answer, query_rag
 
 st.set_page_config(page_title="BookHub RAG", page_icon="📚", layout="wide")
 st.title("📚 BookHub: Your AI Library")
@@ -57,15 +57,26 @@ if index:
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                query_vector = get_embedding(prompt)
+                # Use our new RAG logic with MEMORY (passing chat_history)
                 filter_title = selected_book if selected_book != "All Books" else None
-                context = retrieve_context(index, query_vector, book_title=filter_title)
                 
-                if context:
-                    response = generate_answer(prompt, context)
+                # query_rag now returns BOTH the answer and the context chunks
+                response, context = query_rag(
+                    prompt, 
+                    book_title=filter_title, 
+                    chat_history=st.session_state.messages
+                )
+                
+                if response:
                     st.markdown(response)
+                    
+                    # Add Source Citations below the answer
+                    with st.expander("🔍 Show Source Evidence"):
+                        for i, chunk in enumerate(context):
+                            st.info(f"Chunk {i+1}:\n\n{chunk}")
+                            
                     st.session_state.messages.append({"role": "assistant", "content": response})
                 else:
-                    st.markdown("I couldn't find any relevant information in that book.")
+                    st.markdown("I couldn't find any relevant information.")
 else:
     st.error("Could not connect to Pinecone. Please check your .env file.")

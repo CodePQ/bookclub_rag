@@ -27,31 +27,35 @@ def retrieve_context(index, query_vector, book_title=None, top_k=3):
     context_chunks = [match["metadata"]["text"] for match in results["matches"] if "text" in match["metadata"]]
     return context_chunks
 
-def generate_answer(question, context_chunks, model="llama3"):
+def generate_answer(question, context_chunks, chat_history=None, model="llama3"):
     """
-    Uses Ollama to generate an answer basing it ONLY on retrieved context.
+    Uses Ollama to generate an answer. Supports sliding window memory.
     """
-    # Join the retrieved chunks into one context block
     context_text = "\n---\n".join(context_chunks)
     
-    # Create the 'system' instructions for the LLM
+    # 1. System Prompt
     system_prompt = (
         "You are a helpful reading assistant. Use ONLY the provided context "
         "below to answer the question. If the answer isn't in the context, "
-        "simply say you don't know."
+        "simply say you don't know. Be conversational but concise."
     )
     
-    user_prompt = f"Question: {question}\n\nContext:\n{context_text}"
+    # 2. Build the messages list for Ollama
+    messages = [{'role': 'system', 'content': system_prompt}]
+    
+    # 3. Add Chat History (Sliding Window: Last 6 messages / 3 rounds)
+    if chat_history:
+        messages.extend(chat_history[-6:])
+        
+    # 4. Add current context and question
+    user_input = f"Context:\n{context_text}\n\nQuestion: {question}"
+    messages.append({'role': 'user', 'content': user_input})
     
     # Send to Ollama
-    response = ollama.chat(model=model, messages=[
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_prompt}
-    ])
-    
+    response = ollama.chat(model=model, messages=messages)
     return response['message']['content']
 
-def query_rag(question):
+def query_rag(question, book_title=None, chat_history=None):
     """
     Complete RAG loop: Embed -> Retrieve -> Generate.
     """
@@ -59,18 +63,15 @@ def query_rag(question):
     if not index:
         return None
         
-    print(f"\nAnalyzing question: '{question}'...")
-    
     # 1. Embed question
     query_vector = get_embedding(question)
     
-    # 2. Retrieve relevant parts of the book
-    context = retrieve_context(index, query_vector)
+    # 2. Retrieve relevant parts
+    context = retrieve_context(index, query_vector, book_title=book_title)
     
-    # 3. Generate answer
-    print("Synthesizing answer from retrieved chunks...")
-    answer = generate_answer(question, context)
-    return answer
+    # 3. Generate answer (passing history)
+    answer = generate_answer(question, context, chat_history=chat_history)
+    return answer, context # Returning context for citations!
 
 if __name__ == "__main__":
     print("Welcome to your RAG Book Assistant! (Type 'exit' or 'quit' to stop)")
