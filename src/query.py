@@ -2,7 +2,7 @@ import ollama
 from embed import get_embedding
 from database import get_pinecone_index
 
-def retrieve_context(index, query_vector, book_title=None, top_k=3):
+def retrieve_context(index, query_vector, book_title=None, top_k=5):
     """
     Finds the most relevant text chunks from Pinecone.
     If book_title is provided, it only searches that specific book.
