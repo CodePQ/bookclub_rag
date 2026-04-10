@@ -8,7 +8,8 @@ def get_embedding(text, model="nomic-embed-text"):
         response = ollama.embeddings(model=model, prompt=text)
         return response["embedding"]
     except Exception as e:
-        print(f"Error generating embedding: {e}")
+        print(f"ERROR: Ollama failed to generate embedding for text: '{text[:50]}...'")
+        print(f"Details: {e}")
         return None
 
 def embed_chunks(chunks, model="nomic-embed-text"):
@@ -25,6 +26,8 @@ def embed_chunks(chunks, model="nomic-embed-text"):
             # Show progress every 10 chunks
             if (i + 1) % 10 == 0 or (i + 1) == len(chunks):
                 print(f"Completed {i + 1}/{len(chunks)}")
+        else:
+            print(f"CRITICAL: Failed to embed chunk {i}. Pipeline may be incomplete.")
         
     return embeddings
 

@@ -54,23 +54,30 @@ def upsert_to_pinecone(index, chunks, embeddings, book_title, namespace="default
 def get_all_book_titles(index, namespace="default"):
     """
     Returns a list of all unique book titles found in the index metadata.
-    Note: For very large indexes, it's better to store this list in a 
-    traditional database, but this works perfectly for a personal library!
+    Dynamically detects index dimension to avoid errors.
     """
-    # Query with a dummy vector to get metadata for many records
-    results = index.query(
-        vector=[0.0] * 768, 
-        top_k=1000, 
-        include_metadata=True,
-        namespace=namespace
-    )
-    
-    titles = set()
-    for match in results["matches"]:
-        if "title" in match["metadata"]:
-            titles.add(match["metadata"]["title"])
-            
-    return sorted(list(titles))
+    try:
+        # Get index stats to find the dimension
+        stats = index.describe_index_stats()
+        dimension = stats.get('dimension', 768) # Fallback to 768 if needed
+        
+        # Query with a dummy vector of the CORRECT dimension
+        results = index.query(
+            vector=[0.0] * dimension, 
+            top_k=1000, 
+            include_metadata=True,
+            namespace=namespace
+        )
+        
+        titles = set()
+        for match in results["matches"]:
+            if "metadata" in match and "title" in match["metadata"]:
+                titles.add(match["metadata"]["title"])
+                
+        return sorted(list(titles))
+    except Exception as e:
+        print(f"Error fetching book titles from Pinecone: {e}")
+        return []
 
 if __name__ == "__main__":
     # Test the connection and library list

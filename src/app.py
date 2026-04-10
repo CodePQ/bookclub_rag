@@ -11,30 +11,51 @@ st.title("📚 BookHub: Your AI Library")
 
 # Sidebar for Uploading
 with st.sidebar:
+    st.header("Service Status")
+    # Quick health checks
+    try:
+        ollama.list()
+        st.success("✅ Ollama: Running")
+    except:
+        st.error("❌ Ollama: Not Found")
+        
+    index = get_pinecone_index()
+    if index:
+        st.success("✅ Pinecone: Connected")
+    else:
+        st.error("❌ Pinecone: Error")
+
+    st.divider()
     st.header("Add to Library")
     uploaded_file = st.file_uploader("Upload a PDF book", type="pdf")
     book_title = st.text_input("Enter Book Title")
     
     if st.button("Ingest Book") and uploaded_file and book_title:
-        with st.spinner(f"Ingesting '{book_title}'..."):
-            # Save temporary file
-            if not os.path.exists("data"):
-                os.makedirs("data")
-            temp_path = f"data/{uploaded_file.name}"
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            
-            # Run RAG Pipeline
-            text = load_pdf(temp_path)
-            if text:
-                chunks = chunk_text(text)
-                embeddings = embed_chunks(chunks)
-                index = get_pinecone_index()
-                if index:
-                    upsert_to_pinecone(index, chunks, embeddings, book_title)
-                    st.success(f"'{book_title}' added to your library!")
-            else:
-                st.error("Failed to extract text from PDF.")
+        # Check services before ingesting
+        if not index:
+            st.error("Pinecone connection lost. Check your .env.")
+        else:
+            with st.spinner(f"Ingesting '{book_title}'..."):
+                # Save temporary file
+                if not os.path.exists("data"):
+                    os.makedirs("data")
+                temp_path = f"data/{uploaded_file.name}"
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                # Run RAG Pipeline
+                text = load_pdf(temp_path)
+                if text:
+                    chunks = chunk_text(text)
+                    embeddings = embed_chunks(chunks)
+                    if not embeddings:
+                        st.error("Failed to generate embeddings. Is Ollama running?")
+                    else:
+                        upsert_to_pinecone(index, chunks, embeddings, book_title)
+                        st.success(f"'{book_title}' added to your library!")
+                        st.rerun() # Refresh to show new book in selectbox
+                else:
+                    st.error("Failed to extract text from PDF.")
 
 # Main Chat Interface
 index = get_pinecone_index()

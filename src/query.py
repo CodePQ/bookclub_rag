@@ -31,6 +31,9 @@ def generate_answer(question, context_chunks, chat_history=None, model="llama3")
     """
     Uses Ollama to generate an answer. Supports sliding window memory.
     """
+    if not context_chunks:
+        return "I couldn't find any relevant information in the library to answer that question."
+
     context_text = "\n---\n".join(context_chunks)
     
     # 1. System Prompt
@@ -45,6 +48,8 @@ def generate_answer(question, context_chunks, chat_history=None, model="llama3")
     
     # 3. Add Chat History (Sliding Window: Last 6 messages / 3 rounds)
     if chat_history:
+        # Filter for only user/assistant messages if needed, but here we assume st history format
+        # and we only take the last 6 to keep context window manageable
         messages.extend(chat_history[-6:])
         
     # 4. Add current context and question
@@ -52,8 +57,12 @@ def generate_answer(question, context_chunks, chat_history=None, model="llama3")
     messages.append({'role': 'user', 'content': user_input})
     
     # Send to Ollama
-    response = ollama.chat(model=model, messages=messages)
-    return response['message']['content']
+    try:
+        response = ollama.chat(model=model, messages=messages)
+        return response['message']['content']
+    except Exception as e:
+        print(f"ERROR: Ollama chat failed: {e}")
+        return "Sorry, I encountered an error while trying to generate an answer. Please make sure Ollama is running."
 
 def query_rag(question, book_title=None, chat_history=None):
     """
@@ -61,10 +70,12 @@ def query_rag(question, book_title=None, chat_history=None):
     """
     index = get_pinecone_index()
     if not index:
-        return None
+        return None, []
         
     # 1. Embed question
     query_vector = get_embedding(question)
+    if not query_vector:
+        return "Sorry, I encountered an error generating the embedding for your question.", []
     
     # 2. Retrieve relevant parts
     context = retrieve_context(index, query_vector, book_title=book_title)
